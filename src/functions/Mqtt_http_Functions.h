@@ -17,6 +17,7 @@
 #include "../config/config.h"
 #include "../config/enums.h"
 #include "functions/spiffsFunctions.h"
+#include "unified_dimmer.h"
 
 //***********************************
 //************* Variables externes
