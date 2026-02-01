@@ -194,6 +194,7 @@ unsigned short measurements[LOCAL_MEASUREMENTS]; // NOSONAR
     HA switch_relay2;
     HA device_dimmer_boost;
     HA device_dimmer_alarm_temp;
+    HA switch_dimmerlocal; // Ajout dimmerlocal
 #endif
 
 //***********************************
