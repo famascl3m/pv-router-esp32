@@ -200,6 +200,12 @@ bool getServermode(String Servermode) {
     //dimmer1.setPower(0);
     unified_dimmer.set_power(0);
     config.preheat = false;
+    // AJOUT : Mise à jour de l'état MQTT
+    #ifndef LIGHT_FIRMWARE
+      if (config.mqtt && client.connected()) {
+          switch_dimmerlocal.sendInt(config.dimmerlocal ? 1 : 0);
+      }
+    #endif
     return true;
   }
   if ( Servermode == "MQTT" ) {   
