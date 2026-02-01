@@ -44,9 +44,11 @@ extern HA switch_relay1;
 extern HA switch_relay2;
 extern HA device_dimmer_boost;
 extern HA device_dimmer_alarm_temp;
+extern HA switch_dimmerlocal; //ajout dimmerlocal
 extern xSemaphoreHandle mutex;
 
 extern bool boost();
+extern gestion_puissance unified_dimmer; //dimmerlocal
 //***********************************
 //************* Variables locales
 //***********************************
@@ -199,8 +201,34 @@ WiFiClient espClient;
           returnkey = "Relay2";
         }
 
-        //envoie de la commande de confirmation au broker
-        client.publish((device_dimmer_boost.topic+"state"+returnkey).c_str(), String(arrivage).c_str(), true);
+        // ========== NOUVEAU : Traitement du DimmerLocal ==========
+        if (!doc["DimmerLocal"].isNull()) {
+          bool newState = doc["DimmerLocal"].as<bool>();
+          Serial.println("MQTT callback : DimmerLocal = " + String(newState));
+    
+          // Mise à jour de la configuration
+          config.dimmerlocal = newState;
+    
+          // Si désactivation, arrêt du dimmer
+          if (!config.dimmerlocal) {
+          unified_dimmer.set_power(0);
+          config.preheat = false;
+          logging.Set_log_init("Dimmer Local désactivé via MQTT\n", true);
+          } else {
+          logging.Set_log_init("Dimmer Local activé via MQTT\n", true);
+          }
+    
+          // Sauvegarde de la configuration
+          config.saveConfiguration();
+    
+          // Confirmation de l'état
+          returnkey = "DimmerLocal";
+          switch_dimmerlocal.sendInt(newState ? 1 : 0);
+        }
+        // Envoie de la commande de confirmation au broker (si nécessaire)
+        if (returnkey.length() > 0) {
+          client.publish((device_dimmer_boost.topic+"state"+returnkey).c_str(), String(arrivage).c_str(), true);
+        }
     }
 
   /// récupération des anciennes valeurs de consommation
