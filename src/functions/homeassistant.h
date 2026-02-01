@@ -141,7 +141,8 @@
     device_dimmer_alarm_temp.discovery();
     device_dimmer_alarm_temp.send("RAS"); // Initialisation de l'état de l'alarme à RAS
     switch_dimmerlocal.discovery();// ajout du dimmerlocal
-    
+    // Envoi de l'état initial
+    switch_dimmerlocal.sendInt(config.dimmerlocal ? 1 : 0);
   }
 #endif // not LIGHT_FIRMWARE
 
