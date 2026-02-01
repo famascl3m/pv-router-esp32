@@ -29,6 +29,7 @@
   extern HA device_dimmer_boost;
   extern HA power_apparent;
   extern HA device_dimmer_alarm_temp; 
+  extern HA switch_dimmerlocal; // Ajout controle du dimmerlocal pour activer ou non le routage solaire via HA
 #endif
 
 #ifndef LIGHT_FIRMWARE
@@ -110,9 +111,18 @@
 
     device_dimmer_boost.Set_name("Boost");
     device_dimmer_boost.Set_dev_cla("switch");
+    // AJOUT DU NOUVEAU SWITCH
+    switch_dimmerlocal.Set_name("DimmerLocal");
+    switch_dimmerlocal.Set_dev_cla("switch");
+    
     // subscription au topic commande des switchs
     bool sub_result = client.subscribe((device_dimmer_boost.topic+"command").c_str());
     Serial.println("Souscription switch: " + String(sub_result ? "OK" : "FAILED"));
+
+    // subscritpion du switch dimmerclocal
+    sub_result = client.subscribe((switch_dimmerlocal.topic+"command").c_str());
+    Serial.println("Souscription DimmerLocal: " + String(sub_result ? "OK" : "FAILED"));
+    
     client.loop();
     delay(10);
     
@@ -130,6 +140,7 @@
     device_dimmer_boost.discovery();
     device_dimmer_alarm_temp.discovery();
     device_dimmer_alarm_temp.send("RAS"); // Initialisation de l'état de l'alarme à RAS
+    switch_dimmerlocal.discovery();// ajout du dimmerlocal
     
   }
 #endif // not LIGHT_FIRMWARE
