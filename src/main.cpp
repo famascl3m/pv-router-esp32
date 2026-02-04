@@ -1045,6 +1045,34 @@ static int deltaneg_backup = 0;
   if (!AP) {
     time_reboot();
   }
+
+  //***********************************
+  //************* Loop - monitoring mémoire (toutes les 5 minutes)
+  //***********************************
+  static unsigned long lastMemCheck = 0;
+  if (millis() - lastMemCheck > 300000) {  // 5 minutes
+      lastMemCheck = millis();
+      
+      uint32_t freeHeap = ESP.getFreeHeap();
+      uint32_t minFreeHeap = ESP.getMinFreeHeap();
+      
+      Serial.printf("Heap libre: %d bytes (min: %d)\n", freeHeap, minFreeHeap);
+      
+      // Si moins de 20KB libre, logger un warning
+      if (freeHeap < 20000) {
+          char buf[100];
+          snprintf(buf, sizeof(buf), "⚠️ Mémoire faible: %d bytes (min: %d)\n", freeHeap, minFreeHeap);
+          logging.Set_log_init(buf, true);
+      }
+      
+      // Si moins de 10KB, redémarrer pour éviter un crash
+      if (freeHeap < 10000) {
+          logging.Set_log_init("❌ Mémoire critique, redémarrage préventif\n", true);
+          savelogs("-- reboot mémoire critique --");
+          delay(1000);
+          ESP.restart();
+      }
+  }
   
   task_mem.task_loop = uxTaskGetStackHighWaterMark(nullptr);
   vTaskDelay(pdMS_TO_TICKS(10000));
