@@ -1,12 +1,14 @@
 name: Build all supported platforms's firmware & filesystem and publish new release
 
-on: push
+on:
+  push:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - uses: actions/cache@v4
         with:
           path: |
@@ -14,24 +16,26 @@ jobs:
             ~/.platformio/.cache
             ~/.venv
           key: ${{ runner.os }}-pio
+      
       - name: Install requirements
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends lsb-release git python3-pip python3-venv curl gzip
           python3 -m venv ~/.venv
+      
       - name: Install PlatformIO Core
         run: ~/.venv/bin/python -m pip install platformio
+      
       - name: Build firmware for all supported platforms
         run: ~/.venv/bin/pio run
-     # - name: Generate filesystem content
-     #   run: |
-     #     source ~/.venv/bin/activate
-      #    ./data-templates/generate-data.sh
+      
       - name: Build filesystem for all supported platforms
         run: ~/.venv/bin/pio run -t buildfs
+      
       - name: Compute version name
         id: version
         uses: proudust/gh-describe@v2.1.0
+      
       - name: Prepare distribution files
         run: |
           mkdir dist
@@ -40,12 +44,14 @@ jobs:
             filename="${platform}_${{steps.version.outputs.describe}}_$( basename "$file" ).gz"
             gzip --stdout "$file" > "dist/$filename"
           done
+      
       - name: Upload built files
         uses: actions/upload-artifact@v4.4.3
         with:
           name: dist
           path: |
             dist/*.bin.gz
+
   publish:
     runs-on: ubuntu-latest
     if: ${{ ! startsWith(github.ref, 'refs/tags/') }}
@@ -54,27 +60,27 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      
       - name: List Git tags
         run: git tag -l
+      
       - name: "Download built files"
         uses: actions/download-artifact@v4.1.8
         with:
           name: dist
+      
       - name: Extract version from config.h
         id: extract_version
         run: |
-          version=$(grep "#define RELEASE" ./src/config/config.h | awk '{print $4}' | tr -d '"' )
+          # Chemin corrigé : include/config/config.h au lieu de src/config/config.h
+          version=$(grep "#define RELEASE" ./include/config/config.h | awk '{print $3}' | tr -d '"')
           echo "VERSION=$version" >> $GITHUB_ENV
           echo "version=$version" >> $GITHUB_OUTPUT
+      
       - name: Print extracted version
         run: |
-          echo ${{ steps.extract_version.outputs.version }}
-      #- name: Generate changelog
-      #  id: changelog
-      #  uses: mikepenz/release-changelog-builder-action@v5.0.0
-      #  with:
-      #    mode: "COMMIT"
-      #    log-level: "DEBUG"
+          echo "Version extraite: ${{ steps.extract_version.outputs.version }}"
+      
       - name: Create release
         uses: softprops/action-gh-release@v2.0.9
         id: create_release
@@ -84,8 +90,9 @@ jobs:
           tag_name: v${{ steps.extract_version.outputs.version }}
           name: Release v${{ steps.extract_version.outputs.version }}
           body: |
-              Changelog for version ${{ steps.extract_version.outputs.version }}
-              ${{ github.event.head_commit.message }}
+            Changelog for version ${{ steps.extract_version.outputs.version }}
+            
+            ${{ github.event.head_commit.message }}
           make_latest: "true"
           files: |
             *.bin.gz
