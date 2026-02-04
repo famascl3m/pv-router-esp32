@@ -236,10 +236,10 @@ struct Config {
               doc["otapassword"] | "Pvrouteur2", // <- source
               sizeof(otapassword));         // <- destination's capacity
       facteur = doc["facteur"] | 0.86; 
-      delta = doc["delta"] | 50; 
+      delta = doc["delta"] | -150; 
       delta_init = delta; // sauvegarde de la valeur initiale de delta
       num_fuse = 500;
-      deltaneg = doc["deltaneg"] | 0; 
+      deltaneg = doc["deltaneg"] | -300; 
       deltaneg_init = deltaneg; // sauvegarde de la valeur initiale de deltaneg
       cosphi = doc["cosphi"] | 5; 
       readtime = doc["readtime"] | 555;
@@ -256,10 +256,10 @@ struct Config {
       mqtt = doc["mqtt"] | true;
       mqttport = doc["mqttport"] | 1883;
       
-      dimmerlocal = doc["dimmerlocal"] | false;
+      dimmerlocal = doc["dimmerlocal"] | true;
       flip = doc["flip"] | true;
-      tmax = doc["tmax"] | 65;
-      localfuse = doc["localfuse"] | 20;
+      tmax = doc["tmax"] | 62;
+      localfuse = doc["localfuse"] | 100;
       voltage = doc["voltage"] | 233;
       offset = doc["offset"] | -10;
       SCT_13 = doc["SCT_13"] | 30;
