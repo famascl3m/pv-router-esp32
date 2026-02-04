@@ -15,6 +15,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <RBDdimmer.h>   /// the corrected librairy  in RBDDimmer-master-corrected.rar , the original has a bug
+#include "esp_wifi.h"  // ← AJOUT en haut avec les autres includes
 
 
 //***********************************
@@ -1065,7 +1066,10 @@ void connect_to_wifi() {
     #if WIFI_ACTIVE == true
       WiFi.mode(WIFI_STA);
       WiFi.setSleep(false);
-      WiFi.begin(configwifi.SID, configwifi.passwd); 
+      WiFi.setAutoReconnect(true);
+      WiFi.persistent(false);  // Évite l'usure de la flash
+      esp_wifi_set_ps(WIFI_PS_NONE);  // Désactive complètement le power save
+      WiFi.begin(configwifi.SID, configwifi.passwd);
       int timeoutwifi=0;
       logging.Set_log_init(Start_Wifi_Network,true);
       logging.Set_log_init(configwifi.SID);
