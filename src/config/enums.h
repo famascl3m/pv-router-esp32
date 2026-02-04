@@ -279,7 +279,7 @@ struct Config {
               doc["mqttserver"] | "none", // <- source
               sizeof(mqttserver));         // <- destination's capacity
       strlcpy(Publish,                  // <- destination
-              doc["Publish"] | "domoticz/in", // <- source
+              doc["Publish"] | "ha/pvrouter", // <- source
               sizeof(Publish));         // <- destination's mqtt
       ScreenTime = doc["screentime"] | 0 ; // timer to switch of screen
       strlcpy(topic_Shelly,                  // <- destination
