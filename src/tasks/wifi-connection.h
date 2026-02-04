@@ -88,16 +88,72 @@ void keepWiFiAlive(void * parameter) { // NOSONAR
 /// @brief  task qui permet de rechercher le wifi configuré en cas de passage en mode AP et reboot si trouvé
 /// @param parameter 
 //***********************************
-void keepWiFiAlive2(void * parameter) {
+void keepWiFiAlive2(void *pvParameters) {
+    const TickType_t xDelay = pdMS_TO_TICKS(30000); // Vérifier toutes les 30s
+    int failCount = 0;
+    unsigned long lastConnectAttempt = 0;
+    
     for(;;) {
-      if (AP) { 
-        search_wifi_ssid(); 
-      }
-     
-      task_mem.task_keepWiFiAlive2 = uxTaskGetStackHighWaterMark(nullptr);
-      vTaskDelay(pdMS_TO_TICKS(30000+(esp_random() % 61) - 30)); 
-    } // for
-
+        // Si on n'est pas en mode AP
+        if (!AP) {
+            // Vérifier la connexion WiFi
+            if (WiFi.status() != WL_CONNECTED) {
+                failCount++;
+                
+                unsigned long now = millis();
+                
+                // Logger toutes les 5 tentatives (2min30)
+                if (failCount % 5 == 0) {
+                    char logMsg[100];
+                    int minutes = (failCount * 30) / 60;
+                    snprintf(logMsg, sizeof(logMsg), "WiFi déconnecté depuis %d tentatives (%dmin)\n", failCount, minutes);
+                    logging.Set_log_init(logMsg, true);
+                    Serial.printf("RSSI avant perte: %d dBm\n", WiFi.RSSI());
+                }
+                
+                // Après 20 tentatives (10 minutes), on redémarre
+                if (failCount >= 20) {
+                    logging.Set_log_init("WiFi perdu depuis 10min, redémarrage\n", true);
+                    savelogs("-- reboot après 10min sans WiFi --");
+                    delay(1000);
+                    ESP.restart();
+                }
+                
+                // Ne tenter de reconnecter que toutes les 5 secondes minimum
+                if (now - lastConnectAttempt > 5000) {
+                    Serial.println("keepWiFiAlive2: Tentative de reconnexion WiFi...");
+                    
+                    // Déconnexion propre
+                    WiFi.disconnect(false, false);
+                    delay(100);
+                    
+                    // Reconnexion
+                    WiFi.begin(configwifi.SID, configwifi.passwd);
+                    lastConnectAttempt = now;
+                }
+                
+            } else {
+                // WiFi connecté, reset du compteur
+                if (failCount > 0) {
+                    char logMsg[100];
+                    snprintf(logMsg, sizeof(logMsg), "WiFi reconnecté après %d tentatives (RSSI: %d dBm)\n", 
+                             failCount, WiFi.RSSI());
+                    logging.Set_log_init(logMsg, true);
+                    Serial.println(logMsg);
+                    failCount = 0;
+                }
+                
+                // Vérifier la qualité du signal
+                int rssi = WiFi.RSSI();
+                if (rssi < -85) {
+                    Serial.printf("⚠️ Signal WiFi très faible: %d dBm\n", rssi);
+                }
+            }
+        }
+        
+        task_mem.task_keepWiFiAlive2 = uxTaskGetStackHighWaterMark(nullptr);
+        vTaskDelay(xDelay);
+    }
 }
 
 
