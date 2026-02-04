@@ -140,15 +140,21 @@ void WiFiEvent(WiFiEvent_t event) {
       Serial.println("WiFi clients stopped");
       break;
     case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
-      Serial.println("Disconnected from WiFi access point");
-      ESP.restart();
-      if (AP) {
-        savelogs( "-- sortie du mode AP reboot dans 30s -- ");
-        delay (30000);
+    Serial.println("Disconnected from WiFi access point");
+    
+    // En mode AP, on redémarre après 30s
+    if (AP) {
+        savelogs("-- sortie du mode AP reboot dans 30s --");
+        delay(30000);
         ESP.restart();
-      }
-      WiFi.begin(ssid, passphrase);
-      break;
+    } 
+    // En mode normal, on laisse la task keepWiFiAlive2 gérer
+    else {
+        logging.Set_log_init("WiFi déconnecté, reconnexion auto\n", true);
+        Serial.println("WiFi perdu - la task keepWiFiAlive2 va reconnecter");
+        // PAS DE ESP.restart() !
+    }
+    break;
     case ARDUINO_EVENT_WIFI_STA_AUTHMODE_CHANGE:
       Serial.println("Authentication mode of access point has changed");
       break;
