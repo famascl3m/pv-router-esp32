@@ -72,12 +72,11 @@ void send_to_mqtt(void * parameter) { // NOSONAR
   
   for (;;) {
 
-    if (!WiFi.isConnected()) {   /// si pas de connexion Wifi test dans 10 s 
+    if (!WiFi.isConnected()) {
       vTaskDelay(10*1000 / portTICK_PERIOD_MS);
       continue;
     }
 
-    /// vérification que l'envoie mqtt est souhaité et les connexions actives
     #ifndef LIGHT_FIRMWARE
     
     // Reconnexion MQTT si déconnecté avec timeout
@@ -87,7 +86,6 @@ void send_to_mqtt(void * parameter) { // NOSONAR
         Serial.println("MQTT déconnecté, tentative de reconnexion...");
         reconnect();
         
-        // Si la reconnexion prend plus de 10s, on abandonne ce cycle
         if (millis() - startTime > 10000) {
           Serial.println("⚠️ MQTT timeout reconnexion, passage au cycle suivant");
           vTaskDelay(pdMS_TO_TICKS(5000));
@@ -96,16 +94,15 @@ void send_to_mqtt(void * parameter) { // NOSONAR
       }
 
       if (client.connected()) {
-    #else
-      if (config.mqtt && (WiFi.status() == WL_CONNECTED)) {
-    #endif
         long start = millis();
+        
         #if WIFI_ACTIVE == true
           
           // Prise du mutex avec timeout
           if (xSemaphoreTake(mutex, mqtt_timeout) == pdTRUE) {
             
-            // Vérifier que client.loop() ne bloque pas
+            // ===== APPEL SYSTÉMATIQUE DE client.loop() =====
+            // Pour traiter les messages entrants (commandes HA)
             unsigned long loopStart = millis();
             client.loop();
             unsigned long loopDuration = millis() - loopStart;
@@ -113,104 +110,96 @@ void send_to_mqtt(void * parameter) { // NOSONAR
             if (loopDuration > 5000) {
               Serial.printf("⚠️ client.loop() a pris %lu ms !\n", loopDuration);
             }
+            // ===============================================
             
             Pow_mqtt_send++;
             if (Pow_mqtt_send > 5) {
               long timemesure = start - beforetime;
               float wattheure = (timemesure * abs(gDisplayValues.watt) / timemilli);  
               
-              #ifndef LIGHT_FIRMWARE
-
-                // domoticz et jeedom
-                if (config.IDX != 0) {
-                  Mqtt_send(String(config.IDX), String(int(gDisplayValues.watt)), "", "watt");  
-                }
+              // domoticz et jeedom
+              if (config.IDX != 0) {
+                Mqtt_send(String(config.IDX), String(int(gDisplayValues.watt)), "", "watt");  
+              }
+              
+              if (config.IDXdallas != 0) {
+                Mqtt_send(String(config.IDXdallas), String(gDisplayValues.temperature), "", "Dallas"); 
+              } 
+               
+              // HA
+              if (configmqtt.HA) {
+                device_routeur.sendInt(gDisplayValues.watt);
+                device_routed.sendInt(gDisplayValues.puissance_route);
+                device_dimmer_power.sendInt((unified_dimmer.get_power()) * config.charge / 100);
+                power_apparent.sendFloat(PVA);                        
+                power_factor.sendFloat(PowerFactor);
+                temperature_HA.sendFloat(gDisplayValues.temperature);
+                device_dimmer.sendInt(unified_dimmer.get_power());
+                switch_relay1.sendInt(digitalRead(RELAY1));
+                switch_relay2.sendInt(digitalRead(RELAY2));
+                device_dimmer_boost.send(stringInt(programme_marche_forcee.run));  
+                switch_dimmerlocal.sendInt(config.dimmerlocal ? 1 : 0);
                 
-                if (config.IDXdallas != 0) { //  bug#11  remonté domoticz 
-                  Mqtt_send(String(config.IDXdallas), String(gDisplayValues.temperature), "", "Dallas"); 
-                } 
-                 
-                // HA
-                if (configmqtt.HA) {
-                  device_routeur.sendInt(gDisplayValues.watt);
-                  device_routed.sendInt(gDisplayValues.puissance_route);
-                  device_dimmer_power.sendInt((unified_dimmer.get_power()) * config.charge / 100);
-                  power_apparent.sendFloat(PVA);                        
-                  power_factor.sendFloat(PowerFactor);
-                  temperature_HA.sendFloat(gDisplayValues.temperature);
-                  device_dimmer.sendInt(unified_dimmer.get_power());
-                  switch_relay1.sendInt(digitalRead(RELAY1));
-                  switch_relay2.sendInt(digitalRead(RELAY2));
-                  device_dimmer_boost.send(stringInt(programme_marche_forcee.run));  
-                  switch_dimmerlocal.sendInt(config.dimmerlocal ? 1 : 0);
-                  
-                  // si dallas.security actif alors on envoie l'alarme
-                  if (dallas.security) {
-                    device_dimmer_alarm_temp.send("Ballon Chaud");
-                  } else {
-                    device_dimmer_alarm_temp.send("RAS");
-                  } 
-                }
-
-                // remonté énergie domoticz et jeedom
-                // send if injection
-                if (gDisplayValues.watt < 0) {
-                  if (config.IDX != 0 && config.mqtt) {
-                    Mqtt_send(String(config.IDX), String(int(-gDisplayValues.watt)), "injection", "Reseau");
-                    Mqtt_send(String(config.IDX), String("0"), "grid", "Reseau");
-                  }
-                  if (configmqtt.HA) {
-                    device_inject.sendInt((-gDisplayValues.watt));
-                    device_grid.send("0");
-                    WHtempgrid += wattheure; 
-                    compteur_inject.sendFloat(WHtempgrid);
-                  
-                    //envoie vers mqtt des état injection et consommation 
-                    client.publish(("memory/" + compteur_grid.topic + compteur_grid.Get_name()).c_str(), String(WHtempgrid).c_str(), true); 
-                    compteur_grid.send("0");
-                  }
+                if (dallas.security) {
+                  device_dimmer_alarm_temp.send("Ballon Chaud");
                 } else {
-                  if (config.IDX != 0 && config.mqtt) {
-                    Mqtt_send(String(config.IDX), String("0"), "injection", "Reseau");
-                    Mqtt_send(String(config.IDX), String(int(gDisplayValues.watt)), "grid", "Reseau");
-                  }
-                  if (configmqtt.HA) {
-                    device_grid.sendInt((gDisplayValues.watt));
-                    device_inject.send("0");
-                    compteur_inject.send("0");
-                    WHtempinject += wattheure;
-                    compteur_grid.sendFloat(WHtempinject);
-                    client.publish(("memory/" + compteur_inject.topic + compteur_inject.Get_name()).c_str(), String(WHtempinject).c_str(), true);
-                  }
-                }
+                  device_dimmer_alarm_temp.send("RAS");
+                } 
+              }
 
-              #endif  // not LIGHT_FIRMWARE
+              // remonté énergie domoticz et jeedom
+              if (gDisplayValues.watt < 0) {
+                if (config.IDX != 0 && config.mqtt) {
+                  Mqtt_send(String(config.IDX), String(int(-gDisplayValues.watt)), "injection", "Reseau");
+                  Mqtt_send(String(config.IDX), String("0"), "grid", "Reseau");
+                }
+                if (configmqtt.HA) {
+                  device_inject.sendInt((-gDisplayValues.watt));
+                  device_grid.send("0");
+                  WHtempgrid += wattheure; 
+                  compteur_inject.sendFloat(WHtempgrid);
+                  client.publish(("memory/" + compteur_grid.topic + compteur_grid.Get_name()).c_str(), String(WHtempgrid).c_str(), true); 
+                  compteur_grid.send("0");
+                }
+              } else {
+                if (config.IDX != 0 && config.mqtt) {
+                  Mqtt_send(String(config.IDX), String("0"), "injection", "Reseau");
+                  Mqtt_send(String(config.IDX), String(int(gDisplayValues.watt)), "grid", "Reseau");
+                }
+                if (configmqtt.HA) {
+                  device_grid.sendInt((gDisplayValues.watt));
+                  device_inject.send("0");
+                  compteur_inject.send("0");
+                  WHtempinject += wattheure;
+                  compteur_grid.sendFloat(WHtempinject);
+                  client.publish(("memory/" + compteur_inject.topic + compteur_inject.Get_name()).c_str(), String(WHtempinject).c_str(), true);
+                }
+              }
               
               beforetime = start; 
               Pow_mqtt_send = 0;
               
             } // fin if Pow_mqtt_send > 5
             
-            // Libérer le mutex
             xSemaphoreGive(mutex);
             
           } else {
             Serial.println("⚠️ Impossible d'obtenir le mutex MQTT dans les 10s");
-          } // fin if xSemaphoreTake
+          }
 
         #endif // WIFI_ACTIVE
-      } // fin if client.connected() ou config.mqtt
-           
-      #ifndef LIGHT_FIRMWARE
-    } // fin if config.mqtt && WiFi.status() == WL_CONNECTED
+      }
+    }
+    #else
+    if (config.mqtt && (WiFi.status() == WL_CONNECTED)) {
+      // Mode LIGHT_FIRMWARE (si applicable)
+    }
     #endif
 
     task_mem.task_send_mqtt = uxTaskGetStackHighWaterMark(nullptr);
-        
-    // Sleep for 5 seconds
     vTaskDelay(pdMS_TO_TICKS(2000 + (esp_random() % 61) - 30));
 
-  } // fin for(;;)
-} // fin fonction send_to_mqtt
+  }
+}
 
 #endif
